@@ -1,0 +1,15 @@
+{
+	"client_id": "",
+	"client_secret": "",
+	"redirect_dir": "https://example.com/oauth2callback",
+
+	"hostname": "jaxbot.me",
+	"contactIcon": "https://0.gravatar.com/avatar/58f983b2bd87f6b27de05b07223c1efb?d=https%3A%2F%2Fidenticons.github.com%2F0774ccb7f71c9379ddd9a4ee2d9f0af8.png&r=x&s=440",
+
+	"port": 8099,
+
+	"midMemPercentage": 30,
+	"highMemPercentage": 50,
+	"midCpuPercentage": 5,
+	"highCpuPercentage": 50
+}

@@ -4,17 +4,25 @@ var spawn = require("child_process").spawn;
 var googleapis = require('googleapis');
 var OAuth2Client = googleapis.OAuth2Client;
 
-var CLIENT_ID = "5507397964.apps.googleusercontent.com";
-var CLIENT_SECRET = "";
-var REDIRECT_DIR = "https://sparklr.me/foodlog/oauth2callback";
+var config = require("./config.json");
 
-var oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_DIR);
+var oauth2Client = new OAuth2Client(config.client_id, config.client_secret, config.redirect_dir);
 
-var config = {
-	hostname: "jaxbot.me"
-}
+var apiclient = null;
 
-http.createServer(function(req,res) {
+var our_card_id = "";
+
+googleapis.discover('mirror','v1').execute(function(err,client) {
+	if (err) {
+		console.warn("ERR: " + err.toString());
+		return;
+	}
+	apiclient = client;
+
+	http.createServer(httpHandler).listen(config.port);
+});
+	
+function httpHandler(req,res) {
 	var u = url.parse(req.url, true)
 	var s = u.pathname.split("/");
 	s.shift();
@@ -35,11 +43,6 @@ http.createServer(function(req,res) {
 				}).withAuthClient(oauth2Client).execute(function(err,data) {
 					console.log(err);
 					console.log(data);
-					if (data.attachments) {
-						http.get(data.attachments[0].contentUrl + "&access_token=" + oauth2Client.credentials.access_token, function(res) {
-						console.log(res);
-						});
-					}
 				});
 			});
 			res.end(200);
@@ -53,11 +56,18 @@ http.createServer(function(req,res) {
 			} else {
 				oauth2Client.credentials = tokens;
 				console.log(tokens);
-				res.writeHead(301, { "Location": "timeline" });
+				//res.writeHead(301, { "Location": "timeline" });
 			}
 			res.write('');
 			res.end();
-				
+			
+			apiclient.mirror.timeline.list({ "sourceItemId": "gtop_" + config.hostname }).withAuthClient(oauth2Client).
+				execute(function(err,data) {
+					console.log(data);
+					if (data.items.length > 0) {
+						our_card_id = data.items[0].id;
+					}
+				});
 		});
 		return;
 	}
@@ -85,11 +95,11 @@ http.createServer(function(req,res) {
 		if (s[1] == "contact") {
 			googleapis.discover('mirror','v1').execute(function(err,client) {
 				client.mirror.contacts.insert({
-					"id": "food_log",
-					"displayName": "Food Log",
+					"id": "gtop_contact_provider_"+config.hostname,
+					"displayName": "gtop: " + config.hostname,
+					"imageUrls": [config.contactIcon],
 					"priority": 7,
 					"acceptCommands": [
-						{"type":"TAKE_A_NOTE"},
 						{"type":"POST_AN_UPDATE"}
 					]
 				}).withAuthClient(oauth2Client).execute(function(err,data) {
@@ -104,7 +114,7 @@ http.createServer(function(req,res) {
 		res.write('Glass Mirror API with Node');
 		res.end();
 	}
-}).listen(8099);
+};
 
 function getSystemLoadInfo() {
 	var completed = 0,
@@ -116,7 +126,6 @@ function getSystemLoadInfo() {
 		memused = 0;
 
 	var cb = function() {
-		console.log(completed);
 		if (++completed == 3) {
 			updateLoadInfo(uptime, users, avg, cpu, memtotal, memused);
 		}
@@ -125,7 +134,6 @@ function getSystemLoadInfo() {
 	spawn("uptime").stdout.on('data',function(data) {
 		data = data.toString();
 		var matches = /up\s+(.*?),\s+([0-9]+) users?,\s+load averages?: (.*)/g.exec(data);
-		console.log(matches);
 		uptime = matches[1];
 		users = matches[2];
 		avg = matches[3];
@@ -148,19 +156,37 @@ function getSystemLoadInfo() {
 }
 
 function updateLoadInfo(uptime, users, avg, cpu, memtotal, memused) {
-	googleapis.discover('mirror','v1').execute(function(err,client) {
-		client.mirror.timeline.insert({
-			"callbackUrl": "http://localhost:8099/",
-			"html": "<article>\n  <section>\n    <div class=\"text-auto-size\">\n      <p>"+config.hostname+"</p>\n<p><span class='green'>" + cpu + "%</span> cpu, <span class='text-small'>avg. " + avg + "</span></p>\n      <p>"+memused+"/"+memtotal+"mb</p>\n      <p>"+users+" users</p>\n    </div>\n  </section>\n  <footer>\n    <div>"+uptime+"</div>\n  </footer>\n</article>",
+	var cpuColor = 'green', memColor = 'green';
+	if (cpu > config.midCpuPercentage) cpuColor = 'yellow';
+	if (cpu > config.highCpuPercentage) cpuColor = 'red';
+	if ((memused/memtotal)*100 > config.midMemPercentage) memColor = 'yellow';
+	if ((memused/memtotal)*100 > config.highMemPercentage) memColor = 'red';
+
+	var html = "<article><section><div class=\"text-auto-size\"><p>"+config.hostname+"</p><p><span class='"+cpuColor+"'>" + cpu + "%</span> cpu, <span class='text-small'>avg. " + avg + "</span></p><p class='"+memColor+"'>"+memused+"/"+memtotal+"mb</p><p>"+users+" users</p></div></section><footer><div>"+uptime+"</div></footer></article>";
+
+	console.log(html);
+	
+	var apiCall;
+	if (our_card_id) {
+		apiCall = apiclient.mirror.timeline.patch({id: our_card_id }, {"html": html});
+		console.log("UPDATE MODE:"+our_card_id);
+	}
+	else
+		apiCall = apiclient.mirror.timeline.insert({
+			"html": html,
 			"menuItems": [
 				{"action":"TOGGLE_PINNED"},
 				{"action":"REPLY"},
 				{"action":"DELETE"}
-			]
-		}).withAuthClient(oauth2Client).execute(function(err,data) {
-			console.log(err);
-			console.log(data);
+			],
+			"sourceItemId": "gtop_" + config.hostname
 		});
+
+	apiCall.withAuthClient(oauth2Client).execute(function(err,data) {
+		console.log(err);
+		console.log(data);
+		if (!our_card_id)
+			our_card_id = data.id;
 	});
 }
 
