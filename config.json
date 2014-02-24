@@ -11,5 +11,8 @@
 	"midMemPercentage": 30,
 	"highMemPercentage": 50,
 	"midCpuPercentage": 5,
-	"highCpuPercentage": 50
+	"highCpuPercentage": 50,
+
+	"source_id": "jaxbot.me.test"
 }
+

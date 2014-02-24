@@ -1,16 +1,48 @@
+/* gtop
+ * "Glass Top": Server monitor for Glass
+ */
+
+// include standard node libraries
 var http = require('http');
 var url = require("url");
+var fs = require('fs');
 var spawn = require("child_process").spawn;
+
+// google api stuff
 var googleapis = require('googleapis');
 var OAuth2Client = googleapis.OAuth2Client;
 
+// load in the configuration and use it to connect to the api
 var config = require("./config.json");
-
 var oauth2Client = new OAuth2Client(config.client_id, config.client_secret, config.redirect_dir);
 
+// dot templates
+var dot = require('dot');
+var cards = {};
+
+// load all cards and turn into templates
+var files = fs.readdirSync("cards/");
+for (var i = 0; i < files.length; i++) {
+	cards[files[i].replace('.html','')] = dot.template(fs.readFileSync("cards/"+files[i]))
+}
+
+// will be set to the results of API discovery
 var apiclient = null;
 
-var our_card_id = "";
+// user card storage
+var user_card_ids = {};
+var client_tokens = [];
+
+// read the connected users information from disk
+try {
+	var filedata = fs.readFileSync(".clienttokens.json");
+	if (filedata) {
+		client_tokens = JSON.parse(filedata.toString());
+		oauth2Client.credentials = client_tokens[0];
+	}
+} catch(e) {
+	console.log("Info: failed to load .clienttokens.json, using blank array");
+}
 
 googleapis.discover('mirror','v1').execute(function(err,client) {
 	if (err) {
@@ -18,6 +50,11 @@ googleapis.discover('mirror','v1').execute(function(err,client) {
 		return;
 	}
 	apiclient = client;
+
+	// update cards
+	getSystemLoadInfo();
+
+
 
 	http.createServer(httpHandler).listen(config.port);
 });
@@ -54,20 +91,13 @@ function httpHandler(req,res) {
 			if (err) {
 				console.log(err);
 			} else {
-				oauth2Client.credentials = tokens;
-				console.log(tokens);
-				//res.writeHead(301, { "Location": "timeline" });
+				client_tokens.push(tokens);
+				fs.writeFileSync(".clienttokens.json", JSON.stringify(client_tokens,null,5));
+				getSystemLoadInfo();
 			}
 			res.write('');
 			res.end();
 			
-			apiclient.mirror.timeline.list({ "sourceItemId": "gtop_" + config.hostname }).withAuthClient(oauth2Client).
-				execute(function(err,data) {
-					console.log(data);
-					if (data.items.length > 0) {
-						our_card_id = data.items[0].id;
-					}
-				});
 		});
 		return;
 	}
@@ -118,16 +148,18 @@ function httpHandler(req,res) {
 
 function getSystemLoadInfo() {
 	var completed = 0,
-		uptime = 0,
-		users = 0,
-		avg = 0,
-		cpu = 0,
-		memtotal = 0,
-		memused = 0;
+		data = {
+			uptime: 0,
+			users: 0,
+			avg: 0,
+			cpu: 0,
+			memtotal: 0,
+			memused: 0
+		};
 
 	var cb = function() {
 		if (++completed == 3) {
-			updateLoadInfo(uptime, users, avg, cpu, memtotal, memused);
+			updateLoadInfo(data);
 		}
 	}
 
@@ -155,38 +187,44 @@ function getSystemLoadInfo() {
 	});
 }
 
-function updateLoadInfo(uptime, users, avg, cpu, memtotal, memused) {
-	var cpuColor = 'green', memColor = 'green';
-	if (cpu > config.midCpuPercentage) cpuColor = 'yellow';
-	if (cpu > config.highCpuPercentage) cpuColor = 'red';
-	if ((memused/memtotal)*100 > config.midMemPercentage) memColor = 'yellow';
-	if ((memused/memtotal)*100 > config.highMemPercentage) memColor = 'red';
+function updateLoadInfo(data) {
+	data.cpuColor = cpu > config.midCpuPercentage ? 'green' : 'yellow';
+	data.cpuColor = cpu > config.highCpuPercentage ? 'red' : data.cpuColor;
+	data.memColor = (memused/memtotal)*100 > config.midMemPercentage ? 'green' : 'yellow';
+	data.memColor = (memused/memtotal)*100 > config.highMemPercentage ? 'red' : data.memColor;
 
-	var html = "<article><section><div class=\"text-auto-size\"><p>"+config.hostname+"</p><p><span class='"+cpuColor+"'>" + cpu + "%</span> cpu, <span class='text-small'>avg. " + avg + "</span></p><p class='"+memColor+"'>"+memused+"/"+memtotal+"mb</p><p>"+users+" users</p></div></section><footer><div>"+uptime+"</div></footer></article>";
+	var html = cards.main(data);
 
-	console.log(html);
-	
-	var apiCall;
-	if (our_card_id) {
-		apiCall = apiclient.mirror.timeline.patch({id: our_card_id }, {"html": html});
-		console.log("UPDATE MODE:"+our_card_id);
-	}
-	else
-		apiCall = apiclient.mirror.timeline.insert({
-			"html": html,
-			"menuItems": [
-				{"action":"TOGGLE_PINNED"},
-				{"action":"REPLY"},
-				{"action":"DELETE"}
-			],
-			"sourceItemId": "gtop_" + config.hostname
+	for (i = 0; i < client_tokens.length; i++) {
+		oauth2Client.credentials = client_tokens[i];
+		apiclient.mirror.timeline.list({ "sourceItemId": config.source_id, "isPinned": true })
+		.withAuthClient(oauth2Client)
+		.execute(function(err,data) {
+			var apiCall;
+			if (err) {
+				console.log(err);
+				return;
+			}
+			if (data && data.items.length > 0) {
+				apiCall = apiclient.mirror.timeline.patch({"id": data.items[0].id }, {"html": html});
+			} else {
+				apiCall = apiclient.mirror.timeline.insert({
+					"html": html,
+					"menuItems": [
+						{"action":"TOGGLE_PINNED"},
+						{"action":"DELETE"}
+					],
+					"sourceItemId": config.source_id
+				});
+			}
+
+			apiCall.withAuthClient(oauth2Client).execute(function(err,data) {
+				console.log(err);
+				console.log(data);
+			});
 		});
-
-	apiCall.withAuthClient(oauth2Client).execute(function(err,data) {
-		console.log(err);
-		console.log(data);
-		if (!our_card_id)
-			our_card_id = data.id;
-	});
+	}
 }
+
+setInterval(getSystemLoadInfo, config.updateFrequency * 60 * 1000);
 
