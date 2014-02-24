@@ -33,6 +33,8 @@ var apiclient = null;
 var user_card_ids = {};
 var client_tokens = [];
 
+var sessionhash = Math.random() * 1e8;
+
 // read the connected users information from disk
 try {
 	var filedata = fs.readFileSync(".clienttokens.json");
@@ -53,8 +55,6 @@ googleapis.discover('mirror','v1').execute(function(err,client) {
 
 	// update cards
 	getSystemLoadInfo();
-
-
 
 	http.createServer(httpHandler).listen(config.port);
 });
@@ -90,42 +90,45 @@ function httpHandler(req,res) {
 		oauth2Client.getToken(u.query.code, function(err,tokens) {
 			if (err) {
 				console.log(err);
+				res.writeHead(500);
+				res.write("Uh oh: The token login failed. Chances are you loaded a page that was already loaded. Try going back and pressing the 'get it on glass' button again.");
+				res.end();
 			} else {
-				client_tokens.push(tokens);
-				fs.writeFileSync(".clienttokens.json", JSON.stringify(client_tokens,null,5));
+				var index = client_tokens.push(tokens) - 1;
+
+				fs.writeFile(".clienttokens.json", JSON.stringify(client_tokens,null,5));
+
 				getSystemLoadInfo();
-			}
-			res.write('');
-			res.end();
-			
-		});
-		return;
-	}
-	
-	if (!oauth2Client.credentials) {
-		var uri = oauth2Client.generateAuthUrl({
-			access_type: 'offline',
-			scope: 'https://www.googleapis.com/auth/glass.timeline'
-		});
-		res.writeHead(301, { "Location": uri });
-		res.end();
-	} else {
-		if (s[1] == "subscribe") {
-			googleapis.discover('mirror','v1').execute(function(err,client) {
-				client.mirror.subscriptions.insert({
-					"callbackUrl": "https://sparklr.me/foodlog/subscription",
+
+				// add subscriptions
+				apiclient.mirror.subscriptions.insert({
+					"callbackUrl": config.subscription_callback,
 					"collection": "timeline",
-					"operation": [],
-					"userToken": "idc",
-					"verifyToken": "istilldontcare"
+					"operation": [], // empty set = all
+					"userToken": index,
+					"verifyToken": sessionhash
 				}).withAuthClient(oauth2Client).execute(function(err,data) {
+					if (err) {
+						console.log(err);
+					}
 				});
-			});
-		}
-		if (s[1] == "contact") {
-			googleapis.discover('mirror','v1').execute(function(err,client) {
+				
+				// add subscriptions
+				apiclient.mirror.subscriptions.insert({
+					"callbackUrl": config.subscription_callback,
+					"collection": "timeline",
+					"operation": [], // empty set = all
+					"userToken": index,
+					"verifyToken": sessionhash
+				}).withAuthClient(oauth2Client).execute(function(err,data) {
+					if (err) {
+						console.log(err);
+					}
+				});
+
+				// add contact interface
 				client.mirror.contacts.insert({
-					"id": "gtop_contact_provider_"+config.hostname,
+					"id": "gtop_contact_provider_"+config.source_id,
 					"displayName": "gtop: " + config.hostname,
 					"imageUrls": [config.contactIcon],
 					"priority": 7,
@@ -133,17 +136,44 @@ function httpHandler(req,res) {
 						{"type":"POST_AN_UPDATE"}
 					]
 				}).withAuthClient(oauth2Client).execute(function(err,data) {
-					console.log(err);
-					console.log(data);
+					if (err)
+						console.log(err);
 				});
-			});
-		}
-		if (s[1] == "timeline") {
-			getSystemLoadInfo();
-		}
-		res.write('Glass Mirror API with Node');
-		res.end();
+
+				res.writeHead(302, { "Location": "success" });
+			}
+		});
+		return;
 	}
+
+	if (s[1] == "success") {
+		fs.createReadStream("pages/index.html").pipe(res);
+		return;
+	}
+	
+	if (s[1] == "authorize") {
+		var uri = oauth2Client.generateAuthUrl({
+			access_type: 'offline',
+			scope: 'https://www.googleapis.com/auth/glass.timeline'
+		});
+		res.writeHead(302, { "Location": uri });
+		res.end();
+		return;
+	}
+	if (s[1] == "subscribe") {
+		googleapis.discover('mirror','v1').execute(function(err,client) {
+		});
+	}
+	if (s[1] == "contact") {
+		googleapis.discover('mirror','v1').execute(function(err,client) {
+		});
+	}
+	if (s[1] == "timeline") {
+		getSystemLoadInfo();
+	}
+
+	// nothing else, so just show default
+	fs.createReadStream("pages/index.html").pipe(res);
 };
 
 function getSystemLoadInfo() {
