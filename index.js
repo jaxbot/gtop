@@ -65,24 +65,41 @@ function httpHandler(req,res) {
 	s.shift();
 
 	if (s[1] == "subscription") {
-		console.log("sub received.");
 		var postBody = "";
 		req.on("data",function(data) {
 			postBody += data;
+			if (postBody.length > 1024 * 1024) {
+				postBody = null;
+				req.end();
+			}
 		});
 		req.on("end", function(data) {
-			var d = JSON.parse(postBody);
-			console.log(d);
-			
-			googleapis.discover('mirror','v1').execute(function(err,client) {
-				client.mirror.timeline.get({
+			try {
+				var d = JSON.parse(postBody);
+				console.log(d);
+
+				if (d.verifyToken != sessionhash) {
+					console.log("Bad hash!");
+					res.end();
+					return;
+				}
+
+				if (!client_tokens[d.userToken]) {
+					console.log("Bad user token");
+					res.end();
+					return;
+				}
+				/*
+				apiclient.mirror.timeline.get({
 					id: d.itemId
 				}).withAuthClient(oauth2Client).execute(function(err,data) {
 					console.log(err);
 					console.log(data);
-				});
-			});
-			res.end(200);
+				});*/
+				res.end(200);
+			} catch (e) {
+				res.end();
+			}
 		});
 	}
 	
