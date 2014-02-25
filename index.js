@@ -172,7 +172,7 @@ function httpHandler(req,res) {
 
 	if (page == "success") {
 		res.writeHead(200, { 'Content-type': 'text/html' });
-		fs.createReadStream("pages/index.html").pipe(res);
+		fs.createReadStream("pages/success.html").pipe(res);
 		return;
 	}
 	
