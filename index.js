@@ -179,6 +179,7 @@ function httpHandler(req,res) {
 	if (page == "authorize") {
 		var uri = oauth2Client.generateAuthUrl({
 			access_type: 'offline',
+			approval_prompt: 'force',
 			scope: 'https://www.googleapis.com/auth/glass.timeline'
 		});
 		res.writeHead(302, { "Location": uri });
