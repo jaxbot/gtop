@@ -10,11 +10,10 @@ var spawn = require("child_process").spawn;
 
 // google api stuff
 var googleapis = require('googleapis');
-var OAuth2Client = googleapis.OAuth2Client;
 
 // load in the configuration and use it to connect to the api
 var config = require("./config.json");
-var oauth2Client = new OAuth2Client(config.client_id, config.client_secret, config.redirect_dir);
+var oauth2Client = new googleapis.OAuth2Client(config.client_id, config.client_secret, config.redirect_dir);
 
 // dot templates
 var dot = require('dot');
@@ -62,9 +61,9 @@ googleapis.discover('mirror','v1').execute(function(err,client) {
 function httpHandler(req,res) {
 	var u = url.parse(req.url, true)
 	var s = u.pathname.split("/");
-	s.shift();
+	var page = s[s.length-1];
 
-	if (s[1] == "subscription") {
+	if (page == "subscription") {
 		var postBody = "";
 		req.on("data",function(data) {
 			postBody += data;
@@ -103,7 +102,7 @@ function httpHandler(req,res) {
 		});
 	}
 	
-	if (s[1] == "oauth2callback") {
+	if (page == "oauth2callback") {
 		oauth2Client.getToken(u.query.code, function(err,tokens) {
 			if (err) {
 				console.log(err);
@@ -129,6 +128,8 @@ function httpHandler(req,res) {
 						console.log(err);
 					}
 				});
+
+				/*
 				
 				// add subscriptions
 				apiclient.mirror.subscriptions.insert({
@@ -156,6 +157,7 @@ function httpHandler(req,res) {
 					if (err)
 						console.log(err);
 				});
+				*/
 
 				res.writeHead(302, { "Location": "success" });
 			}
@@ -163,12 +165,12 @@ function httpHandler(req,res) {
 		return;
 	}
 
-	if (s[1] == "success") {
+	if (page == "success") {
 		fs.createReadStream("pages/index.html").pipe(res);
 		return;
 	}
 	
-	if (s[1] == "authorize") {
+	if (page == "authorize") {
 		var uri = oauth2Client.generateAuthUrl({
 			access_type: 'offline',
 			scope: 'https://www.googleapis.com/auth/glass.timeline'
@@ -177,18 +179,7 @@ function httpHandler(req,res) {
 		res.end();
 		return;
 	}
-	if (s[1] == "subscribe") {
-		googleapis.discover('mirror','v1').execute(function(err,client) {
-		});
-	}
-	if (s[1] == "contact") {
-		googleapis.discover('mirror','v1').execute(function(err,client) {
-		});
-	}
-	if (s[1] == "timeline") {
-		getSystemLoadInfo();
-	}
-
+	
 	// nothing else, so just show default
 	fs.createReadStream("pages/index.html").pipe(res);
 };
