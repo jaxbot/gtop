@@ -1,13 +1,13 @@
 <article>
 	<section>
 		<div class="text-auto-size">
-			<p>{{=config.hostname}}</p>
+			<p>{{=it.config.hostname}}</p>
 			<p>
-				<span class='{{=cpuColor}}'>{{=it.cpu}}%</span> cpu, <span class='text-small'>avg. {{=it.avg}}</span>
+				<span class='{{=it.cpuColor}}'>{{=it.cpu}}%</span> cpu, <span class='text-small'>avg. {{=it.avg}}</span>
 			</p>
 			<p class='{{=it.memColor}}'>{{=it.memused}}/{{=it.memtotal}}mb</p>
 			<p>{{=it.users}} users</p>
 		</div>
-		<footer><div>{{=it.uptime}}</div></footer>
 	</section>
+	<footer><div>{{=it.uptime}}</div></footer>
 </article>

@@ -114,7 +114,11 @@ function httpHandler(req,res) {
 
 				fs.writeFile(".clienttokens.json", JSON.stringify(client_tokens,null,5));
 
+				client_tokens.push(tokens);
+
 				getSystemLoadInfo();
+
+				oauth2Client.credentials = tokens;
 
 				// add subscriptions
 				apiclient.mirror.subscriptions.insert({
@@ -160,12 +164,14 @@ function httpHandler(req,res) {
 				*/
 
 				res.writeHead(302, { "Location": "success" });
+				res.end();
 			}
 		});
 		return;
 	}
 
 	if (page == "success") {
+		res.writeHead(200, { 'Content-type': 'text/html' });
 		fs.createReadStream("pages/index.html").pipe(res);
 		return;
 	}
@@ -181,12 +187,13 @@ function httpHandler(req,res) {
 	}
 	
 	// nothing else, so just show default
+	res.writeHead(200, { 'Content-type': 'text/html' });
 	fs.createReadStream("pages/index.html").pipe(res);
 };
 
 function getSystemLoadInfo() {
 	var completed = 0,
-		data = {
+		args = {
 			uptime: 0,
 			users: 0,
 			avg: 0,
@@ -197,70 +204,75 @@ function getSystemLoadInfo() {
 
 	var cb = function() {
 		if (++completed == 3) {
-			updateLoadInfo(data);
+			updateLoadInfo(args);
 		}
 	}
 
 	spawn("uptime").stdout.on('data',function(data) {
 		data = data.toString();
 		var matches = /up\s+(.*?),\s+([0-9]+) users?,\s+load averages?: (.*)/g.exec(data);
-		uptime = matches[1];
-		users = matches[2];
-		avg = matches[3];
+		args.uptime = matches[1];
+		args.users = matches[2];
+		args.avg = matches[3];
 		cb();
 	});
 
 	spawn("mpstat").stdout.on('data',function(data) {
 		data = data.toString();
-		stats = data.match(/(\d+\.\d+)/gm);
-		cpu = (100 - stats[stats.length-1]).toPrecision(3);
+		args.stats = data.match(/(\d+\.\d+)/gm);
+		args.cpu = (100 - args.stats[args.stats.length-1]).toPrecision(3);
 		cb();
 	});
 
 	spawn("free",['-m']).stdout.on('data',function(data) {
 		data = data.toString();
-		memtotal = /m:\s+(\d+)/g.exec(data)[1];
-		memused = /e:\s+(\d+)/g.exec(data)[1];
+		args.memtotal = /m:\s+(\d+)/g.exec(data)[1];
+		args.memused = /e:\s+(\d+)/g.exec(data)[1];
 		cb();
 	});
 }
 
 function updateLoadInfo(data) {
-	data.cpuColor = cpu > config.midCpuPercentage ? 'green' : 'yellow';
-	data.cpuColor = cpu > config.highCpuPercentage ? 'red' : data.cpuColor;
-	data.memColor = (memused/memtotal)*100 > config.midMemPercentage ? 'green' : 'yellow';
-	data.memColor = (memused/memtotal)*100 > config.highMemPercentage ? 'red' : data.memColor;
+	data.config = config;
+	data.cpuColor = data.cpu < config.midCpuPercentage ? 'green' : 'yellow';
+	data.cpuColor = data.cpu > config.highCpuPercentage ? 'red' : data.cpuColor;
+	data.memColor = (data.memused/data.memtotal)*100 < config.midMemPercentage ? 'green' : 'yellow';
+	data.memColor = (data.memused/data.memtotal)*100 > config.highMemPercentage ? 'red' : data.memColor;
 
 	var html = cards.main(data);
 
 	for (i = 0; i < client_tokens.length; i++) {
-		oauth2Client.credentials = client_tokens[i];
-		apiclient.mirror.timeline.list({ "sourceItemId": config.source_id, "isPinned": true })
-		.withAuthClient(oauth2Client)
-		.execute(function(err,data) {
-			var apiCall;
-			if (err) {
-				console.log(err);
-				return;
-			}
-			if (data && data.items.length > 0) {
-				apiCall = apiclient.mirror.timeline.patch({"id": data.items[0].id }, {"html": html});
-			} else {
-				apiCall = apiclient.mirror.timeline.insert({
-					"html": html,
-					"menuItems": [
-						{"action":"TOGGLE_PINNED"},
-						{"action":"DELETE"}
-					],
-					"sourceItemId": config.source_id
-				});
-			}
+		(function(tokens) {
+			oauth2Client.credentials = tokens;
+			apiclient.mirror.timeline.list({ "sourceItemId": config.source_id, "isPinned": true })
+			.withAuthClient(oauth2Client)
+			.execute(function(err,data) {
+				var apiCall;
+				if (err) {
+					console.log(err);
+					return;
+				}
+				if (data && data.items.length > 0) {
+					apiCall = apiclient.mirror.timeline.patch({"id": data.items[0].id }, {"html": html});
+				} else {
+					apiCall = apiclient.mirror.timeline.insert({
+						"html": html,
+						"menuItems": [
+							{"action":"TOGGLE_PINNED"},
+							{"action":"DELETE"}
+						],
+						"sourceItemId": config.source_id
+					});
+				}
 
-			apiCall.withAuthClient(oauth2Client).execute(function(err,data) {
-				console.log(err);
-				console.log(data);
+				oauth2Client.credentials = tokens;
+
+				apiCall.withAuthClient(oauth2Client).execute(function(err,data) {
+					console.log(err);
+					console.log(data);
+				});
 			});
-		});
+		})(client_tokens[i]);
 	}
 }
 
