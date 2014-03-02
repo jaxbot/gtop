@@ -7,6 +7,7 @@ var http = require('http');
 var url = require("url");
 var fs = require('fs');
 var spawn = require("child_process").spawn;
+var exec = require("child_process").exec;
 
 // google api stuff
 var googleapis = require('googleapis');
@@ -77,24 +78,60 @@ function httpHandler(req,res) {
 				var d = JSON.parse(postBody);
 				console.log(d);
 
+				/*
 				if (d.verifyToken != sessionhash) {
 					console.log("Bad hash!");
 					res.end();
 					return;
 				}
+				*/
 
 				if (!client_tokens[d.userToken]) {
 					console.log("Bad user token");
 					res.end();
 					return;
 				}
-				/*
-				apiclient.mirror.timeline.get({
-					id: d.itemId
-				}).withAuthClient(oauth2Client).execute(function(err,data) {
-					console.log(err);
-					console.log(data);
-				});*/
+				oauth2Client.credentials = client_tokens[d.userToken];
+				if (d.itemId) {
+					apiclient.mirror.timeline.get({
+						id: d.itemId
+					}).withAuthClient(oauth2Client).execute(function(err,data) {
+						console.log(err);
+						console.log(data);
+
+						if (data.text) {
+							data.text = data.text.toLowerCase();
+							console.log(data.text);
+							for (var i = 0; i < config.commands.length; i++) {
+								for (var j = 0; j < config.commands[i].aliases.length; j++) {
+									if (config.commands[i].aliases[j] == data.text) {
+										console.log(config.commands[i].command);
+										(function(command,token) {
+											exec(config.commands[i].command, function(err, stdout, stderr) {
+												console.log(stdout);
+												oauth2Client.credentials = token;
+												if (command.sendback) {
+													var apiCall = apiclient.mirror.timeline.insert({
+														"html": "<article><section><div class='text-auto-size'><pre>" + stdout + "</pre></div></section><footer>gtop</footer></article>",
+														"menuItems": [
+															{"action":"REPLY"},
+															{"action":"TOGGLE_PINNED"},
+															{"action":"DELETE"}
+														],
+													});
+													apiCall.withAuthClient(oauth2Client).execute(function(err,data) {
+														console.log(err);
+														console.log(data);
+													});
+												}
+											});
+										})(config.commands[i],oauth2Client.credentials);
+									}
+								}
+							}
+						}
+					});
+				}
 				res.end(200);
 			} catch (e) {
 				res.end();
@@ -148,10 +185,13 @@ function httpHandler(req,res) {
 					}
 				});
 
+				*/
+				//
 				// add contact interface
-				client.mirror.contacts.insert({
+				apiclient.mirror.contacts.insert({
 					"id": "gtop_contact_provider_"+config.source_id,
 					"displayName": "gtop: " + config.hostname,
+					"speakableName": config.speakableName,
 					"imageUrls": [config.contactIcon],
 					"priority": 7,
 					"acceptCommands": [
@@ -161,7 +201,6 @@ function httpHandler(req,res) {
 					if (err)
 						console.log(err);
 				});
-				*/
 
 				res.writeHead(302, { "Location": "success" });
 				res.end();
@@ -259,6 +298,7 @@ function updateLoadInfo(data) {
 					apiCall = apiclient.mirror.timeline.insert({
 						"html": html,
 						"menuItems": [
+							{"action":"REPLY"},
 							{"action":"TOGGLE_PINNED"},
 							{"action":"DELETE"}
 						],
