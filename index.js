@@ -60,9 +60,13 @@ function getSystemLoadInfo() {
 
 	var avg = os.loadavg();
 
+	for (var i=0;i<avg.length;i++) {
+		avg[i] = avg[i].toPrecision(3);
+	}
+
 	args.avg = avg.join(" ");
-	args.memtotal = os.totalmem();
-	args.memused = os.totalmem() - os.freemem();
+	args.memtotal = (os.totalmem() / 1024 / 1024).toPrecision(3);
+	args.memused = ((os.totalmem() - os.freemem()) / 1024 / 1024).toPrecision(3);
 
 	var mempercent = (args.memused/args.memtotal) * 100;
 
