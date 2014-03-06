@@ -12,8 +12,8 @@ var os = require("os");
 var config = require("./config.json");
 
 config.callbacks = {
-	subscription: this.onSubscription,
-	newclient: this.onNewClient
+	subscription: onSubscription,
+	newclient: onNewClient
 };
 
 prism.init(config, function(err) {
@@ -22,54 +22,62 @@ prism.init(config, function(err) {
 	setInterval(getSystemLoadInfo, config.updateFrequency * 60 * 1000);
 });
 
-var onNewClient = function(tokens) {
+function onNewClient(tokens) {
 	getSystemLoadInfo();
 };
 
-var onSubscription = function(err, payload) {
+function onSubscription(err, payload) {
 	for (var i = 0; i < config.commands.length; i++) {
 		for (var j = 0; j < config.commands[i].aliases.length; j++) {
 			if (config.commands[i].aliases[j] == data.text) {
 				exec(config.commands[i].command, function(err, stdout, stderr) {
 					console.log(stdout);
-
-					var html = "<article><section><div class='text-auto-size'><pre>" + stdout + "</pre></div></section><footer>gtop</footer></article>";
-
+					
+					var html = prism.cards.stdout({ stdout: stdout, command: config.commands[i].command });
+					
 					if (config.commands[i].sendback)
 						prism.insertCard({ token: payload.token, card: html });
-				}
+				});
 			}
 		}
 	}
 };
 
 function getSystemLoadInfo() {
-	var completed = 0,
-		args = {
-			uptime: 0,
-			users: 0,
-			avg: 0,
-			cpu: 0,
-			memtotal: 0,
-			memused: 0
-		};
+	var args = {
+		uptime: 0,
+		users: 0,
+		avg: 0,
+		cpu: 0,
+		memtotal: 0,
+		memused: 0,
+		cpuColor: 'green',
+		memColor: 'green',
+		config: config
+	};
 
 	args.uptime = os.uptime();
-	args.avg = os.loadAvg().join(" ");
+
+	var avg = os.loadavg();
+
+	args.avg = avg.join(" ");
 	args.memtotal = os.totalmem();
 	args.memused = os.totalmem() - os.freemem();
-	
-	updateLoadInfo(args);
-}
 
-function updateLoadInfo(data) {
-	data.config = config;
-	data.cpuColor = data.cpu < config.midCpuPercentage ? 'green' : 'yellow';
-	data.cpuColor = data.cpu > config.highCpuPercentage ? 'red' : data.cpuColor;
-	data.memColor = (data.memused/data.memtotal)*100 < config.midMemPercentage ? 'green' : 'yellow';
-	data.memColor = (data.memused/data.memtotal)*100 > config.highMemPercentage ? 'red' : data.memColor;
+	var mempercent = (args.memused/args.memtotal) * 100;
 
-	var html = cards.main(data);
+	if (avg[0] > config.midCpuLoad) {
+		if (avg[0] > config.highCpuLoad)
+			args.cpuColor = "red";
+		else
+			args.cpuColor = "yellow";
+	}
+
+	args.memColor = mempercent < config.midMemPercentage ? 'green' : 'yellow';
+	args.memColor = mempercent > config.highMemPercentage ? 'red' : args.memColor;
+
+	var html = prism.cards.main(args);
 	prism.updateAllCards({ card: html });
+
 }
 
