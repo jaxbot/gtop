@@ -56,7 +56,7 @@ function getSystemLoadInfo() {
 		config: config
 	};
 
-	args.uptime = os.uptime();
+	args.uptime = getRelativeTime(os.uptime());
 
 	var avg = os.loadavg();
 
@@ -83,5 +83,33 @@ function getSystemLoadInfo() {
 	var html = prism.cards.main(args);
 	prism.updateAllCards({ card: html, pinned: true, id: "gtop_"+config.hostname });
 
-}
+};
+
+function getRelativeTime(time) {
+	var str = "";
+	if (time < 60) {
+		return "less than a minute";
+	} else {
+		if (time / 60 < 60) {
+			str = Math.floor((time / 60)) + " minutes";
+		} else {
+			if (((time / 60) / 60) < 24) {
+				str = Math.floor(((time / 60) / 60)) + " hours";
+			} else {
+				str = Math.floor((((time / 60) / 60) / 24)) + " days";
+			}
+		}
+	}
+	if (str == "1 days") {
+		str = "one day";
+	}
+	if (str == "1 hours") {
+		str = "one hour";
+	}
+	if (str == "1 minutes") {
+		str = "one minute";
+	}
+	
+	return str;
+};
 
