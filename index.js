@@ -77,7 +77,7 @@ function getSystemLoadInfo() {
 	args.memColor = mempercent > config.highMemPercentage ? 'red' : args.memColor;
 
 	var html = prism.cards.main(args);
-	prism.updateAllCards({ card: html });
+	prism.updateAllCards({ card: html, pinned: true, id: "gtop_"+config.hostname });
 
 }
 
