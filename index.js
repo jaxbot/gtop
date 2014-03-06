@@ -7,11 +7,13 @@ var prism = require("glass-prism");
 // include standard node libraries
 var spawn = require("child_process").spawn;
 var exec = require("child_process").exec;
+var os = require("os");
 
 var config = require("./config.json");
 
 config.callbacks = {
-	subscription: this.onSubscription
+	subscription: this.onSubscription,
+	newclient: this.onNewClient
 };
 
 prism.init(config, function(err) {
@@ -20,30 +22,22 @@ prism.init(config, function(err) {
 	setInterval(getSystemLoadInfo, config.updateFrequency * 60 * 1000);
 });
 
+var onNewClient = function(tokens) {
+	getSystemLoadInfo();
+};
+
 var onSubscription = function(err, payload) {
 	for (var i = 0; i < config.commands.length; i++) {
 		for (var j = 0; j < config.commands[i].aliases.length; j++) {
 			if (config.commands[i].aliases[j] == data.text) {
-				(function(command,token) {
-					exec(config.commands[i].command, function(err, stdout, stderr) {
-						console.log(stdout);
-						oauth2Client.credentials = token;
-						if (command.sendback) {
-							var apiCall = apiclient.mirror.timeline.insert({
-								"html": "<article><section><div class='text-auto-size'><pre>" + stdout + "</pre></div></section><footer>gtop</footer></article>",
-								"menuItems": [
-							{"action":"REPLY"},
-								{"action":"TOGGLE_PINNED"},
-								{"action":"DELETE"}
-							],
-							});
-							apiCall.withAuthClient(oauth2Client).execute(function(err,data) {
-								console.log(err);
-								console.log(data);
-							});
-						}
-					});
-				})(config.commands[i],oauth2Client.credentials);
+				exec(config.commands[i].command, function(err, stdout, stderr) {
+					console.log(stdout);
+
+					var html = "<article><section><div class='text-auto-size'><pre>" + stdout + "</pre></div></section><footer>gtop</footer></article>";
+
+					if (config.commands[i].sendback)
+						prism.insertCard({ token: payload.token, card: html });
+				}
 			}
 		}
 	}
@@ -60,34 +54,12 @@ function getSystemLoadInfo() {
 			memused: 0
 		};
 
-	var cb = function() {
-		if (++completed == 3) {
-			updateLoadInfo(args);
-		}
-	}
-
-	spawn("uptime").stdout.on('data',function(data) {
-		data = data.toString();
-		var matches = /up\s+(.*?),\s+([0-9]+) users?,\s+load averages?: (.*)/g.exec(data);
-		args.uptime = matches[1];
-		args.users = matches[2];
-		args.avg = matches[3];
-		cb();
-	});
-
-	spawn("mpstat").stdout.on('data',function(data) {
-		data = data.toString();
-		args.stats = data.match(/(\d+\.\d+)/gm);
-		args.cpu = (100 - args.stats[args.stats.length-1]).toPrecision(3);
-		cb();
-	});
-
-	spawn("free",['-m']).stdout.on('data',function(data) {
-		data = data.toString();
-		args.memtotal = /m:\s+(\d+)/g.exec(data)[1];
-		args.memused = /e:\s+(\d+)/g.exec(data)[1];
-		cb();
-	});
+	args.uptime = os.uptime();
+	args.avg = os.loadAvg().join(" ");
+	args.memtotal = os.totalmem();
+	args.memused = os.totalmem() - os.freemem();
+	
+	updateLoadInfo(args);
 }
 
 function updateLoadInfo(data) {
