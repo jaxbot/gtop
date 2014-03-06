@@ -1,19 +1,32 @@
 {
+	// obtain these from the Google API Console
 	"client_id": "",
 	"client_secret": "",
-	"redirect_dir": "https://example.com/oauth2callback",
+	"redirect_dir": "https://example.com/gtop/oauth2callback",
 
-	"hostname": "jaxbot.me",
+	// the same info in the Google API that can be used for sending subscription pushes to
+	"subscription_callback": "https://example.com/subscription",
+
+	// the name of the host. Purely for display usage
+	"hostname": "someserver.com",
+
+	// the icon for the contact
 	"contactIcon": "http://jaxbot.me/glass/gtop/gtop.jpg",
-	"subscription_callback": "https://sparklr.me/glass/gtop",
+	"displayName": "gtop",
+	"speakableName": "G Top",
 
-	"port": 8099,
+	// the port the http server should listen on
+	"port": 8101,
 
+	// thresholds for the colors of the gtop data
 	"midMemPercentage": 30,
 	"highMemPercentage": 50,
-	"midCpuPercentage": 5,
-	"highCpuPercentage": 50,
+	"midCpuLoad": 3,
+	"highCpuLoad": 5,
 
-	"source_id": "jaxbot.me.test"
+	// an id to identify the card provider. Important for you have multiple gtop servers
+	"id": "jaxbot.me.test",
+
+	// in minutes
+	"updateFrequency": 5
 }
-
