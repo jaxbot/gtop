@@ -1,7 +1,11 @@
 /* gtop
  * "Glass Top": Server monitor for Glass
+ * By Jonathan Warner (@jaxbot)
+ * 
+ * Instructions, install, etc: http://glass.jaxbot.me/articles/gtop
  */
 
+// uses glass-prism Node.js library to interface with Glass
 var prism = require("glass-prism");
 
 // include standard node libraries
@@ -9,7 +13,11 @@ var spawn = require("child_process").spawn;
 var exec = require("child_process").exec;
 var os = require("os");
 
+// load configuration for this instance
 var config = require("./config.json");
+
+// for fuzzy time
+var time = require("./time");
 
 config.callbacks = {
 	subscription: onSubscription,
@@ -56,7 +64,7 @@ function getSystemLoadInfo() {
 		config: config
 	};
 
-	args.uptime = getRelativeTime(os.uptime());
+	args.uptime = time.getRelativeTime(os.uptime());
 
 	var avg = os.loadavg();
 
@@ -83,33 +91,5 @@ function getSystemLoadInfo() {
 	var html = prism.cards.main(args);
 	prism.updateAllCards({ card: html, pinned: true, id: "gtop_"+config.hostname });
 
-};
-
-function getRelativeTime(time) {
-	var str = "";
-	if (time < 60) {
-		return "less than a minute";
-	} else {
-		if (time / 60 < 60) {
-			str = Math.floor((time / 60)) + " minutes";
-		} else {
-			if (((time / 60) / 60) < 24) {
-				str = Math.floor(((time / 60) / 60)) + " hours";
-			} else {
-				str = Math.floor((((time / 60) / 60) / 24)) + " days";
-			}
-		}
-	}
-	if (str == "1 days") {
-		str = "one day";
-	}
-	if (str == "1 hours") {
-		str = "one hour";
-	}
-	if (str == "1 minutes") {
-		str = "one minute";
-	}
-	
-	return str;
 };
 
