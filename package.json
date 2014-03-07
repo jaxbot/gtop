@@ -1,0 +1,29 @@
+{
+  "name": "gtop",
+  "version": "0.0.1",
+  "description": "Server monitoring application for Google Glass",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/jaxbot/gtop.git"
+  },
+  "keywords": [
+    "glass",
+    "google",
+    "gtop",
+    "server",
+    "monitoring"
+  ],
+  "author": "Jonathan Warner (jaxbot)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jaxbot/gtop/issues"
+  },
+  "homepage": "https://github.com/jaxbot/gtop",
+  "dependencies": {
+    "glass-prism": "0.0.1"
+  }
+}
