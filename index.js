@@ -2,7 +2,7 @@
  * "Glass Top": Server monitor for Glass
  * By Jonathan Warner (@jaxbot)
  * 
- * Instructions, install, etc: http://glass.jaxbot.me/articles/gtop
+ * Instructions, install, etc: http://okaysass.com/posts/gtop
  */
 
 // uses glass-prism Node.js library to interface with Glass
@@ -44,7 +44,7 @@ function onSubscription(err, payload) {
 					var html = prism.cards.stdout({ stdout: stdout, command: config.commands[i].command });
 					
 					if (config.commands[i].sendback)
-						prism.insertCard({ token: payload.token, card: html });
+						prism.insertCard({ token: payload.token, html: html });
 				});
 			}
 		}
@@ -54,9 +54,7 @@ function onSubscription(err, payload) {
 function getSystemLoadInfo() {
 	var args = {
 		uptime: 0,
-		users: 0,
 		avg: 0,
-		cpu: 0,
 		memtotal: 0,
 		memused: 0,
 		cpuColor: 'green',
@@ -73,23 +71,24 @@ function getSystemLoadInfo() {
 	}
 
 	args.avg = avg.join(" ");
-	args.memtotal = (os.totalmem() / 1024 / 1024).toPrecision(3);
-	args.memused = ((os.totalmem() - os.freemem()) / 1024 / 1024).toPrecision(3);
+	args.memtotal = Math.round((os.totalmem() / 1024 / 1024));
+	args.memused = Math.round(((os.totalmem() - os.freemem()) / 1024 / 1024));
 
 	var mempercent = (args.memused/args.memtotal) * 100;
 
-	if (avg[0] > config.midCpuLoad) {
+	if (avg[0] > config.midCpuLoad)
 		if (avg[0] > config.highCpuLoad)
-			args.cpuColor = "red";
+			args.cpuColor = 'red';
 		else
-			args.cpuColor = "yellow";
-	}
-
-	args.memColor = mempercent < config.midMemPercentage ? 'green' : 'yellow';
-	args.memColor = mempercent > config.highMemPercentage ? 'red' : args.memColor;
+			args.cpuColor = 'yellow';
+	if (mempercent > config.midMemPercentage)
+		if (mempercent > config.highMemPercentage)
+			args.memColor = 'red';
+		else
+			args.memColor = 'yellow';
 
 	var html = prism.cards.main(args);
-	prism.updateAllCards({ card: html, pinned: true, id: "gtop_"+config.hostname });
+	prism.updateAllCards({ html: html, pinned: true, sourceItemId: "gtop_"+config.hostname });
 
 };
 
