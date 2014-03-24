@@ -24,6 +24,6 @@
   },
   "homepage": "https://github.com/jaxbot/gtop",
   "dependencies": {
-    "glass-prism": "0.0.2"
+    "glass-prism": "0.1.0"
   }
 }
