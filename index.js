@@ -9,7 +9,6 @@
 var prism = require("glass-prism");
 
 // include standard node libraries
-var spawn = require("child_process").spawn;
 var exec = require("child_process").exec;
 var os = require("os");
 
@@ -19,37 +18,42 @@ var config = require("./config.json");
 // for fuzzy time
 var time = require("./time");
 
-config.callbacks = {
-	subscription: onSubscription,
-	newclient: onNewClient
-};
-
 prism.init(config, function(err) {
 	getSystemLoadInfo();
 
 	setInterval(getSystemLoadInfo, config.updateFrequency * 60 * 1000);
 });
 
+prism.on('newclient', onNewClient);
+prism.on('subscription', onSubscription);
+
 function onNewClient(tokens) {
 	getSystemLoadInfo();
 };
 
 function onSubscription(err, payload) {
-	for (var i = 0; i < config.commands.length; i++) {
-		for (var j = 0; j < config.commands[i].aliases.length; j++) {
-			if (config.commands[i].aliases[j] == data.text) {
-				exec(config.commands[i].command, function(err, stdout, stderr) {
-					console.log(stdout);
-					
-					var html = prism.cards.stdout({ stdout: stdout, command: config.commands[i].command });
-					
-					if (config.commands[i].sendback)
-						prism.insertCard({ token: payload.token, html: html });
-				});
+	if (payload.item) {
+		for (var i = 0; i < config.commands.length; i++) {
+			for (var j = 0; j < config.commands[i].aliases.length; j++) {
+				if (config.commands[i].aliases[j] == payload.item.text) {
+					executeCommand(config.commands[i], payload.data.token);
+				}
 			}
 		}
 	}
 };
+
+function executeCommand(command, token) {
+	exec(command.command, function(err, stdout, stderr) {
+		console.log(stdout);
+
+		var html = prism.cards.stdout({ stdout: stdout,
+			command: command.command });
+
+		if (command.sendback)
+			prism.insertCard({ html: html }, token);
+	});
+}
 
 function getSystemLoadInfo() {
 	var args = {
@@ -88,7 +92,7 @@ function getSystemLoadInfo() {
 			args.memColor = 'yellow';
 
 	var html = prism.cards.main(args);
-	prism.updateAllCards({ html: html, pinned: true, sourceItemId: "gtop_"+config.hostname });
+	prism.all.updateCard({ html: html, isPinned: true, sourceItemId: "gtop_"+config.hostname });
 
 };
 
