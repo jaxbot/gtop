@@ -28,5 +28,14 @@
 	"id": "jaxbot.me.test",
 
 	// in minutes
-	"updateFrequency": 5
+	"updateFrequency": 5,
+
+	"commands": [
+		{ "aliases": [
+			"hello"
+				],
+			"command": "echo hi",
+			"sendback": true
+		}
+	]	
 }
