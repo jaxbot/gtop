@@ -6,6 +6,8 @@
 
 	// the same info in the Google API that can be used for sending subscription pushes to
 	"subscription_callback": "https://example.com/subscription",
+	"subscribe": true,
+	"verify_hash": "somethingweird",
 
 	// the name of the host. Purely for display usage
 	"hostname": "someserver.com",
@@ -33,9 +35,9 @@
 	"commands": [
 		{ "aliases": [
 			"hello"
-				],
+			],
 			"command": "echo hi",
 			"sendback": true
 		}
-	]	
+	]
 }
