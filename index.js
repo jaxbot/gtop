@@ -35,7 +35,7 @@ function onSubscription(err, payload) {
 	if (payload.item) {
 		for (var i = 0; i < config.commands.length; i++) {
 			for (var j = 0; j < config.commands[i].aliases.length; j++) {
-				if (config.commands[i].aliases[j] == payload.item.text) {
+				if (config.commands[i].aliases[j].toLowerCase() == payload.item.text.toLowerCase()) {
 					executeCommand(config.commands[i], payload.data.token);
 				}
 			}
